@@ -36,7 +36,9 @@ namespace WPKAccess
 
         public static WpkFile ReadFile(string path)
         {
-            throw new NotImplementedException();
+            var file = new WpkFile();
+            file.ReadFile(File.OpenRead(path));
+            return file;
         }
 
         public void ReadFile(Stream fileStream)
