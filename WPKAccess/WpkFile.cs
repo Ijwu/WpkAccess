@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,15 +26,15 @@ At each Offset for WEM Sound File is just the data for the WEM
 
 namespace WPKAccess
 {
-    public class WpkFile
+    public class WpkFile : IList<WemFile>
     {
         private const int Signature = 845427570;
         private const int Version = 1;
+        private const int IndexOffset = 12;
 
-        private int FileCount;
+        private List<WemFile> _soundFiles = new List<WemFile>();
 
-        public List<WemFile> SoundFiles = new List<WemFile>();
-
+        #region I/O
         public static WpkFile ReadFile(string path)
         {
             var file = new WpkFile();
@@ -59,9 +60,42 @@ namespace WPKAccess
             }
 
             List<int> offsets = ReadFileEntryOffsets(fileStream);
-            SoundFiles = ReadWemFilesFromOffsets(fileStream, offsets);
+            _soundFiles = ReadWemFilesFromOffsets(fileStream, offsets);
 
             fileStream.Dispose();
+        }
+
+        public void WriteFile(string path)
+        {
+            WriteFile(File.Open(path, FileMode.OpenOrCreate, FileAccess.Write));
+        }
+
+        public void WriteFile(Stream fileStream)
+        {
+            using (BinaryWriter writer = new BinaryWriter(fileStream))
+            {
+                writer.Write(Signature);
+                writer.Write(Version);
+                writer.Write(_soundFiles.Count);
+
+                foreach (var wem in _soundFiles)
+                {
+                    writer.Write(wem.MetadataOffset);
+                }
+
+                foreach (var wem in _soundFiles)
+                {
+                    writer.Write(wem.DataOffset);
+                    writer.Write(wem.DataLength);
+                    writer.Write(wem.Name.Length);
+                    writer.Write(Encoding.UTF8.GetBytes(wem.Name));
+                }
+
+                foreach (var wem in _soundFiles)
+                {
+                    writer.Write(wem.Data); 
+                }
+            }
         }
 
         private List<int> ReadFileEntryOffsets(Stream fileStream)
@@ -69,9 +103,9 @@ namespace WPKAccess
             var ret = new List<int>();
             using (BinaryReader reader = new BinaryReader(fileStream, Encoding.UTF8, true))
             {
-                FileCount = reader.ReadInt32();
+                int count = reader.ReadInt32();
 
-                for (int i = 0; i < FileCount; i++)
+                for (int i = 0; i < count; i++)
                 {
                     ret.Add(reader.ReadInt32());    
                 }
@@ -101,7 +135,6 @@ namespace WPKAccess
 
                     var fileData = reader.ReadBytes(dataLength);
 
-                    file.DataLength = dataLength;
                     file.Name = name;
                     file.Data = fileData;
 
@@ -109,6 +142,84 @@ namespace WPKAccess
                 }
             }
             return ret;
-        } 
+        }
+#endregion
+
+        public IEnumerator<WemFile> GetEnumerator()
+        {
+            return _soundFiles.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return ((IEnumerable) _soundFiles).GetEnumerator();
+        }
+
+        public void Add(WemFile item)
+        {
+            _soundFiles.Add(item);
+            UpdateIndex();
+        }
+
+        public void Clear()
+        {
+            _soundFiles.Clear();
+            UpdateIndex();
+        }
+
+        public void Insert(int index, WemFile item)
+        {
+            _soundFiles.Insert(index, item);
+            UpdateIndex();
+        }
+
+        public void RemoveAt(int index)
+        {
+            _soundFiles.RemoveAt(index);
+            UpdateIndex();
+        }
+
+        public bool Remove(WemFile item)
+        {
+            var ret = _soundFiles.Remove(item);
+            UpdateIndex();
+            return ret;
+        }
+
+        public bool Contains(WemFile item) => _soundFiles.Contains(item);
+
+        public void CopyTo(WemFile[] array, int arrayIndex) => _soundFiles.CopyTo(array, arrayIndex);
+
+        public int Count => _soundFiles.Count;
+
+        public bool IsReadOnly => false;
+
+        public int IndexOf(WemFile item) => _soundFiles.IndexOf(item);
+
+        public WemFile this[int index]
+        {
+            get { return _soundFiles[index]; }
+            set
+            {
+                _soundFiles[index] = value;
+                UpdateIndex();
+            }
+        }
+
+        private void UpdateIndex()
+        {
+            int currentOffset = IndexOffset + 4 * _soundFiles.Count;
+            foreach (var wem in _soundFiles)
+            {
+                wem.MetadataOffset = currentOffset;
+                currentOffset += 12 + wem.NameLength;
+            }
+
+            foreach (var wem in _soundFiles)
+            {
+                wem.DataOffset = currentOffset;
+                currentOffset += wem.DataLength;
+            }
+        }
     }
 }
