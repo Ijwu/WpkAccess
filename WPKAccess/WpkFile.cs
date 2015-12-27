@@ -88,7 +88,7 @@ namespace WPKAccess
                     writer.Write(wem.DataOffset);
                     writer.Write(wem.DataLength);
                     writer.Write(wem.Name.Length);
-                    writer.Write(Encoding.UTF8.GetBytes(wem.Name));
+                    writer.Write(Encoding.Unicode.GetBytes(wem.Name));
                 }
 
                 foreach (var wem in _soundFiles)
@@ -127,9 +127,10 @@ namespace WPKAccess
 
                     var dataOffset = reader.ReadInt32();
                     var dataLength = reader.ReadInt32();
-                    var nameLength = reader.ReadInt32();
+                    //Times 2 because null bytes.
+                    var nameLength = reader.ReadInt32() * 2;
 
-                    var name = Encoding.UTF8.GetString(reader.ReadBytes(nameLength));
+                    var name = Encoding.Unicode.GetString(reader.ReadBytes(nameLength));
 
                     reader.BaseStream.Seek(dataOffset, SeekOrigin.Begin);
 
