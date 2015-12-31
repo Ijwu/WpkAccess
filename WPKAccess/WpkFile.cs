@@ -146,6 +146,8 @@ namespace WPKAccess
         }
 #endregion
 
+        #region IList Implementation
+
         public IEnumerator<WemFile> GetEnumerator()
         {
             return _soundFiles.GetEnumerator();
@@ -206,6 +208,9 @@ namespace WPKAccess
                 UpdateIndex();
             }
         }
+
+        #endregion
+
 
         private void UpdateIndex()
         {
