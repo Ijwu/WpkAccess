@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 /*
+Format of WPK file on disk. Provided by @SkinSpotlights. Check them out: https://twitter.com/SkinSpotlights
+
 4 byte "r3d2"
 4 byte version (1)
 4 byte Amount of WEM Files
@@ -26,6 +28,9 @@ At each Offset for WEM Sound File is just the data for the WEM
 
 namespace WPKAccess
 {
+    /// <summary>
+    /// Represents a WPK file. WPK is a format used by the WWise Audio Engine to retain an archive of sound files (WEM files).
+    /// </summary>
     public class WpkFile : IList<WemFile>
     {
         private const int Signature = 845427570;
@@ -35,6 +40,11 @@ namespace WPKAccess
         private List<WemFile> _soundFiles = new List<WemFile>();
 
         #region I/O
+        /// <summary>
+        /// Reads a WPK file from a path.
+        /// </summary>
+        /// <param name="path">Path to the WPK file.,</param>
+        /// <returns>An instance of <see cref="WpkFile"/> representing the file on the path.</returns>
         public static WpkFile ReadFile(string path)
         {
             var file = new WpkFile();
@@ -42,9 +52,13 @@ namespace WPKAccess
             return file;
         }
 
-        public void ReadFile(Stream fileStream)
+        /// <summary>
+        /// Fills in this <see cref="WpkFile"/> instance from a <see cref="Stream"/> instance.
+        /// </summary>
+        /// <param name="stream">The stream to read the file from.</param>
+        private void ReadFile(Stream stream)
         {
-            using (BinaryReader reader = new BinaryReader(fileStream, Encoding.UTF8, true))
+            using (BinaryReader reader = new BinaryReader(stream, Encoding.UTF8, true))
             {
                 int signature = reader.ReadInt32();
                 if (signature != Signature)
@@ -59,20 +73,28 @@ namespace WPKAccess
                 }
             }
 
-            List<int> offsets = ReadFileEntryOffsets(fileStream);
-            _soundFiles = ReadWemFilesFromOffsets(fileStream, offsets);
+            List<int> offsets = ReadFileEntryOffsets(stream);
+            _soundFiles = ReadWemFilesFromOffsets(stream, offsets);
 
-            fileStream.Dispose();
+            stream.Dispose();
         }
 
+        /// <summary>
+        /// Writes a WPK file representing this instance of <see cref="WpkFile"/> to the path on disk.
+        /// </summary>
+        /// <param name="path">Path to write the file to.</param>
         public void WriteFile(string path)
         {
             WriteFile(File.Open(path, FileMode.OpenOrCreate, FileAccess.Write));
         }
 
-        public void WriteFile(Stream fileStream)
+        /// <summary>
+        /// Writes a WPK file representing this instance of <see cref="WpkFile"/> to the provided <see cref="Stream"/> instance.
+        /// </summary>
+        /// <param name="stream">The stream to write the file to.</param>
+        public void WriteFile(Stream stream)
         {
-            using (BinaryWriter writer = new BinaryWriter(fileStream))
+            using (BinaryWriter writer = new BinaryWriter(stream))
             {
                 writer.Write(Signature);
                 writer.Write(Version);
@@ -93,31 +115,42 @@ namespace WPKAccess
 
                 foreach (var wem in _soundFiles)
                 {
-                    writer.Write(wem.Data); 
+                    writer.Write(wem.Data);
                 }
             }
         }
 
-        private List<int> ReadFileEntryOffsets(Stream fileStream)
+        /// <summary>
+        /// Reads the offsets of the file entries in the <see cref="Stream"/> holding a WPK file.
+        /// </summary>
+        /// <param name="stream">The stream to read the offsets from.</param>
+        /// <returns></returns>
+        private List<int> ReadFileEntryOffsets(Stream stream)
         {
             var ret = new List<int>();
-            using (BinaryReader reader = new BinaryReader(fileStream, Encoding.UTF8, true))
+            using (BinaryReader reader = new BinaryReader(stream, Encoding.UTF8, true))
             {
                 int count = reader.ReadInt32();
 
                 for (int i = 0; i < count; i++)
                 {
-                    ret.Add(reader.ReadInt32());    
+                    ret.Add(reader.ReadInt32());
                 }
             }
 
             return ret;
         }
 
-        private List<WemFile> ReadWemFilesFromOffsets(Stream fileStream, List<int> offsets)
+        /// <summary>
+        /// Reads the WEM files from the offsets provided in the <see cref="Stream"/> holding a WPK file.
+        /// </summary>
+        /// <param name="stream">The stream to read the offsets from.</param>
+        /// <param name="offsets">The offsets of the WEM files.</param>
+        /// <returns>A list of <see cref="WemFile"/> representing the WEM file entries in the stream.</returns>
+        private List<WemFile> ReadWemFilesFromOffsets(Stream stream, List<int> offsets)
         {
             var ret = new List<WemFile>();
-            using (BinaryReader reader = new BinaryReader(fileStream, Encoding.UTF8, true))
+            using (BinaryReader reader = new BinaryReader(stream, Encoding.UTF8, true))
             {
                 foreach (var offset in offsets)
                 {
@@ -144,7 +177,7 @@ namespace WPKAccess
             }
             return ret;
         }
-#endregion
+        #endregion
 
         #region IList Implementation
 
@@ -155,7 +188,7 @@ namespace WPKAccess
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ((IEnumerable) _soundFiles).GetEnumerator();
+            return ((IEnumerable)_soundFiles).GetEnumerator();
         }
 
         public void Add(WemFile item)
@@ -211,7 +244,11 @@ namespace WPKAccess
 
         #endregion
 
-
+        /// <summary>
+        /// Updates the internal <see cref="WemFile"/> list to correct all file offsets.
+        /// This is necessary after each modification to the list in order to maintain the correct file entry offsets.
+        /// These offsets are necessary when writing the WPK file to disk.
+        /// </summary>
         private void UpdateIndex()
         {
             int currentOffset = IndexOffset + 4 * _soundFiles.Count;
